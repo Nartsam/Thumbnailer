@@ -3,6 +3,7 @@
 
 #include<QObject>
 #include<QImage>
+#include<atomic>
 
 //一个小型结构体,用于返回视频文件的相关信息
 struct VideoInfo{
@@ -74,7 +75,7 @@ public:
 
     //因为get_thumbnails函数与QTread进行了链接，所以通过一般途径得不到它的返回值
     //规定该函数在返回时同步修改这个变量的值,以获取其返回值,该变量在其他时刻的值可被任意修改,无意义
-    int get_thumbnails_result;
+    std::atomic<int> get_thumbnails_result{0};
 
 private:
     static int MaxThumbsLimit; //每行/列最多能画多少个缩略图

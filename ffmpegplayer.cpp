@@ -219,7 +219,7 @@ void FFmpegPlayer::start_decoding(){
     avcodec_parameters_to_context(pAVctx,pFormatCtx->streams[streamIndex]->codecpar);
     pCodec=avcodec_find_decoder(pAVctx->codec_id);
     if(pCodec==NULL){
-        avcodec_close(pAVctx);
+        avcodec_free_context(&pAVctx);
         avformat_close_input(&pFormatCtx);
         qCritical("Find Decoder Fail!");
         errCode=FIND_DECODER_ERR; stop();
@@ -227,14 +227,14 @@ void FFmpegPlayer::start_decoding(){
     }
     //初始化pAVctx
     if(avcodec_open2(pAVctx,pCodec,NULL)<0){
-        avcodec_close(pAVctx);
+        avcodec_free_context(&pAVctx);
         avformat_close_input(&pFormatCtx);
         qCritical("Initialize pAVctx Fail!");
         errCode=AVCODEC_OPEN2_ERR; stop();
         return;
     }
     //初始化pAVpkt
-    pAVpkt =(AVPacket*)av_malloc(sizeof(AVPacket));
+    pAVpkt=av_packet_alloc();
     //初始化数据帧空间
     pAVframe=av_frame_alloc(); pAVframeRGB=av_frame_alloc();
     //创建图像数据存储buf, av_image_get_buffer_size一帧大小
@@ -292,11 +292,14 @@ void FFmpegPlayer::start_decoding(){
             av_packet_unref(pAVpkt);
         }
     }
+    currentImage=QImage(); //清空引用,防止访问已释放的ffmpeg缓冲区
     //释放资源
     sws_freeContext(pSwsCtx);
+    av_packet_free(&pAVpkt);
     av_frame_free(&pAVframeRGB);
     av_frame_free(&pAVframe);
-    avcodec_close(pAVctx);
+    av_free(buf);
+    avcodec_free_context(&pAVctx);
     avformat_close_input(&pFormatCtx);
     stop();
     //qDebug()<<"play finish!";

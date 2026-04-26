@@ -161,11 +161,11 @@ VideoInfo Thumbnailer::get_video_info(const QString &media_path){
     AVCodecContext *pAVctx=avcodec_alloc_context3(NULL);
     avcodec_parameters_to_context(pAVctx,pFormatCtx->streams[streamIndex]->codecpar);
     const AVCodec *pCodec=avcodec_find_decoder(pAVctx->codec_id);
-    if(pCodec==NULL){avcodec_close(pAVctx); avformat_close_input(&pFormatCtx); qCritical("Find Decoder Fail!"); return result;}
-    if(avcodec_open2(pAVctx,pCodec,NULL)<0){avcodec_close(pAVctx); avformat_close_input(&pFormatCtx); qCritical("Initialize pAVctx Fail!"); return result;}
+    if(pCodec==NULL){avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx); qCritical("Find Decoder Fail!"); return result;}
+    if(avcodec_open2(pAVctx,pCodec,NULL)<0){avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx); qCritical("Initialize pAVctx Fail!"); return result;}
     result.width=pAVctx->width; result.height=pAVctx->height;
     long long duration_us=pFormatCtx->duration; result.duration=duration_us/AV_TIME_BASE;
-    avcodec_close(pAVctx); avformat_close_input(&pFormatCtx);
+    avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx);
     return result;
 }
 
@@ -196,13 +196,13 @@ bool Thumbnailer::get_thumbnails(const QString &media_path,int row,int column,co
     //查找解码器
     avcodec_parameters_to_context(pAVctx,pFormatCtx->streams[streamIndex]->codecpar);
     const AVCodec *pCodec=avcodec_find_decoder(pAVctx->codec_id);
-    if(pCodec==NULL){avcodec_close(pAVctx); avformat_close_input(&pFormatCtx); qCritical()<<"查询解码器失败!"; return false;}
+    if(pCodec==NULL){avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx); qCritical()<<"查询解码器失败!"; return false;}
     if(avcodec_open2(pAVctx,pCodec,NULL)<0){
-        avcodec_close(pAVctx); avformat_close_input(&pFormatCtx);
+        avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx);
         qCritical()<<"初始化 pAVctx 错误!"; return false;
     }
     /* ********************************* 找到了视频流，获取视频时长和尺寸 ************************************ */
-    AVPacket *pAVpkt=(AVPacket*)av_malloc(sizeof(AVPacket));
+    AVPacket *pAVpkt=av_packet_alloc();
     AVFrame *pAVframe=av_frame_alloc(),*pAVframeRGB=av_frame_alloc();
     unsigned char *buf=(unsigned char*)av_malloc(av_image_get_buffer_size(AV_PIX_FMT_RGB32,pAVctx->width,pAVctx->height,1));
     av_image_fill_arrays(pAVframeRGB->data,pAVframeRGB->linesize,buf,AV_PIX_FMT_RGB32,pAVctx->width,pAVctx->height,1);
@@ -313,8 +313,10 @@ bool Thumbnailer::get_thumbnails(const QString &media_path,int row,int column,co
     */
     //释放资源
     sws_freeContext(pSwsCtx);
+    av_packet_free(&pAVpkt);
     av_frame_free(&pAVframeRGB); av_frame_free(&pAVframe);
-    avcodec_close(pAVctx); avformat_close_input(&pFormatCtx);
+    av_free(buf);
+    avcodec_free_context(&pAVctx); avformat_close_input(&pFormatCtx);
     return true;
 }
 

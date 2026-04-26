@@ -364,10 +364,10 @@ void ThumbnailerDialog::on_prev_frame_pushButton_clicked(){
     player->prev_frame();
 }
 void ThumbnailerDialog::on_fast_backward_pushButton_clicked(){
-    player->seek(player->position()+5*1000);
+    player->seek(player->position()-5*1000);
 }
 void ThumbnailerDialog::on_fast_forward_pushButton_clicked(){
-    player->seek(player->position()-5*1000); //不知道为啥有的时候会往后跳
+    player->seek(player->position()+5*1000);
 }
 void ThumbnailerDialog::on_play_spd_comboBox_currentIndexChanged(int index){
     Q_UNUSED(index);

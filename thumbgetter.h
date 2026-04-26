@@ -1,0 +1,4 @@
+#ifndef THUMBGETTER_H
+#define THUMBGETTER_H
+
+#endif // THUMBGETTER_H

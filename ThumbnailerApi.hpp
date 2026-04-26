@@ -5,15 +5,9 @@
 #include<QThread>
 #include<QJsonObject>
 #include<QJsonDocument>
-#include<QSharedMemory>
 #include<QEventLoop>
 #include<QTimer>
 #include<QImage>
-
-//C:\Users\Nartsam\Videos\Captures\TestVideo.mp4
-//C:\Users\Nartsam\Videos\Captures\TestVideo - 副本.mp4
-
-//C:\Users\Nartsam\Videos\TestVideo.mp4
 
 
 namespace ThumbnailerApi{
@@ -42,9 +36,7 @@ public:
         process.waitForStarted();
     }
     ~ThumbsGetter(){
-        shared_memory.detach();
         if(process.state()!=QProcess::NotRunning) stop_process();
-        // qDebug()<<"ThumbsGetter: Wait For Process Terminate.";
         process.waitForFinished(2000);
         if(process.state()!=QProcess::NotRunning){
             process.terminate();
@@ -73,11 +65,13 @@ public:
      * 获取一整张的缩略图, 生成完成后通过信号给出图片在本地文件中的路径
      * @file_path: 媒体文件路径
      * @row, column: 缩略图的行数和列数
+     * @thumbs_name: 缩略图文件名(不含扩展名)
+     * 缩略图保存位置由Thumbnailer进程管理(ztbso/merged/),通过thumbs_path字段返回
     */
-    void start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_dir,const QString &thumbs_name){
+    void start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name){
         QJsonObject obj;
         obj["opt"]="get_merged_thumbnails";
-        obj["file_path"]=file_path; obj["row"]=row; obj["column"]=column; obj["thumbs_dir"]=thumbs_dir; obj["thumbs_name"]=thumbs_name;
+        obj["file_path"]=file_path; obj["row"]=row; obj["column"]=column; obj["thumbs_name"]=thumbs_name;
         QString plist_str;
         for(auto i:pts_list) plist_str.append((plist_str.isEmpty()?"":",")+QString::number(i));
         obj["pts_list"]=plist_str;
@@ -110,8 +104,13 @@ public:
         width=height=-1; //初始化
         getter->start_get_media_info(file_path);
         loop->exec();
+        //断开信号连接,防止超时后回调访问已销毁的局部变量
+        QObject::disconnect(getter,&ThumbsGetter::media_info_generated,slot_object,nullptr);
         loop->deleteLater();
-        if(width==-1||height==-1) return false;
+        if(width==-1||height==-1){
+            getter->deleteLater(); //超时未收到结果,手动释放
+            return false;
+        }
         return true;
     }
 private:
@@ -150,45 +149,16 @@ private:
         emit local_image_generated(obj.value("file_path").toString(),tpath);
         return true;
     }
-    QImage get_image_with_shared_memory_name(const QString &name){
-        // 1. 附加到共享内存
-        shared_memory.setKey(name);
-        if(!shared_memory.attach()){
-            qCritical()<<QString("ThumbsGetter: Attach to Thumbs Shared Memory '%1' Failed: %2").arg(name,shared_memory.errorString());
-            return QImage();
-        }
-        // 2. 加锁读取
-        shared_memory.lock();
-        auto* data=static_cast<const uchar*>(shared_memory.constData());
-        // 3. 解析头部
-        struct SharedImageHeader {
-            qint32 width;           // 图像宽度
-            qint32 height;          // 图像高度
-            qint32 format;          // QImage::Format 枚举值，如 QImage::Format_ARGB32
-            qint32 dataSize;        // 图像像素数据的实际大小（字节数）
-            // 注意：这里没有存储像素数据，像素数据紧接着 header 之后存放
-        };
-        const auto* header=reinterpret_cast<const SharedImageHeader*>(data);
-        // 4. 拷贝像素数据！关键：不要直接引用
-        const uchar* pixels=data+sizeof(SharedImageHeader);
-        QImage shared_image(pixels,header->width,header->height,(QImage::Format)header->format);
-        QImage image=shared_image.copy();  // 关键步骤 必须深拷贝！共享内存可能随时被删除！
-        // 5. 分离共享内存
-        shared_memory.unlock();
-        shared_memory.detach();
-        return image;
-    }
     bool parse_as_thumbnails_result(const QJsonObject &obj){
         if(obj.value("opt")!="get_thumbnails"||!obj.contains("result")) return false; //不是该格式
         int pos=obj.value("pos").toInt();
-        QString image_memory_name=obj.value("memory_name").toString();
         QImage image;
         if(obj.value("result").toString()=="Success"){
-            image=get_image_with_shared_memory_name(image_memory_name);
-
-            write_json({{"opt","release_memory"},{"memory_name",image_memory_name}}); //向process写入信息释放内存
+            QString thumb_path=obj.value("thumb_path").toString();
+            if(!thumb_path.isEmpty()) image.load(thumb_path);
+            //通知Thumbnailer删除临时文件
+            write_json({{"opt","delete_file"},{"file_path",thumb_path}});
         }
-
         emit image_generated(obj.value("file_path").toString(),pos,image);
         return true;
     }
@@ -205,7 +175,7 @@ private:
             return;
         }
         if(print_debug_info) qDebug().noquote()<<"[OriginalRead]:"<<str;
-        QJsonParseError parseError; //QByteArray tmpba=transfer_to_local8bit?str.toLocal8Bit():str.toUtf8();
+        QJsonParseError parseError;
         QJsonDocument jsonDoc=QJsonDocument::fromJson(str,&parseError);
         if(parseError.error!=QJsonParseError::NoError){
             qCritical()<<"ThumbsGetter: Parse Error:"<<parseError.errorString()<<", Input:"<<str.size();
@@ -249,7 +219,7 @@ signals:
     void got_result(QJsonObject result_json);
 private slots:
     void ready_read_output(){
-        QByteArray str; //auto str=process.readAllStandardOutput();
+        QByteArray str;
         while(true){
             str=process.readLine();
             if(!str.isEmpty()) process_line(str.trimmed()); //原始输入最后还有换行符
@@ -264,7 +234,6 @@ private:
     bool transfer_to_local8bit{false}; //将文本转换为Local8Bit后再写入process,否则以UTF-8格式写入
     bool print_debug_info{false};
     QProcess process;
-    QSharedMemory shared_memory;
 };
 
 }
@@ -272,4 +241,3 @@ private:
 
 
 #endif // THUMBNAILERAPI_HPP
-
