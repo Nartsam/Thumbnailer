@@ -57,7 +57,7 @@ HEADERS += \
     $$PWD/GIFWriter/gifencoder.h \
     $$PWD/thumbnailerdialog.h \
     $$PWD/thumblistener.h \
-    thumbgetter.h
+    $$PWD/thumbsgetter.hpp
 
 FORMS += \
     $$PWD/thumbnailerdialog.ui
