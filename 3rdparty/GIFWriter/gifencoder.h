@@ -2,6 +2,7 @@
 #define GIFENCODER_H
 
 #include<QObject>
+#include<QImage>
 #include"cgif.h"
 
 class GifEncoder:public QObject{
@@ -22,6 +23,8 @@ public slots:
 
 private:
     CGIFrgb *pGIF = nullptr;
+    int gifWidth = 0;
+    int gifHeight = 0;
 };
 
 

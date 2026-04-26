@@ -1,42 +1,50 @@
 #include"gifencoder.h"
 #include<QImage>
+#include<cstring>
 
 GifEncoder::GifEncoder(QObject *parent):QObject(parent){}
 
 bool GifEncoder::open(QString filename,int width,int height){
+    if (pGIF != nullptr) {
+        cgif_rgb_close(pGIF);
+        pGIF = nullptr;
+    }
     CGIFrgb_Config config;
     memset(&config, 0, sizeof(config));
-    config.path = filename.toLocal8Bit().constData();
+    QByteArray pathBytes = filename.toLocal8Bit();
+    config.path = pathBytes.constData();
     config.width = uint16_t(width);
     config.height = uint16_t(height);
-    //config.attrFlags |= CGIF_FRAME_ATTR_INTERLACED; //隔行编码帧 2024-04-06
     config.genFlags =
         CGIF_FRAME_GEN_USE_TRANSPARENCY | CGIF_FRAME_GEN_USE_DIFF_WINDOW;
+    gifWidth = width;
+    gifHeight = height;
     pGIF = cgif_rgb_newgif(&config);
-    return pGIF;
+    return pGIF != nullptr;
 }
 
 bool GifEncoder::push(QImage &image,int delayTime){
     if (pGIF == nullptr) {
         return false;
     }
+    QImage frame = image.scaled(gifWidth, gifHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                       .convertToFormat(QImage::Format_RGBA8888);
     CGIFrgb_FrameConfig fconfig;
     memset(&fconfig, 0, sizeof(fconfig));
-    fconfig.pImageData = reinterpret_cast<uint8_t *>(
-        const_cast<unsigned char *>(image.constBits()));
+    fconfig.pImageData = const_cast<uint8_t *>(frame.constBits());
     fconfig.fmtChan = CGIF_CHAN_FMT_RGBA;
-    //fconfig.attrFlags |= CGIF_FRAME_ATTR_INTERLACED; //隔行编码帧 2024-04-06
     fconfig.genFlags =
         CGIF_FRAME_GEN_USE_TRANSPARENCY | CGIF_FRAME_GEN_USE_DIFF_WINDOW;
-    fconfig.delay = uint16_t(delayTime);
+    fconfig.delay = uint16_t(delayTime / 10);
     cgif_rgb_addframe(pGIF, &fconfig);
     return true;
 }
 
 bool GifEncoder::close(){
-    if (cgif_rgb_close(pGIF) == CGIF_OK) {
-        pGIF = nullptr;
-        return true;
+    if (pGIF == nullptr) {
+        return false;
     }
-    return false;
+    cgif_result r = cgif_rgb_close(pGIF);
+    pGIF = nullptr;
+    return r == CGIF_OK;
 }

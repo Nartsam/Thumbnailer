@@ -1,20 +1,23 @@
 #include<QApplication>
+#include<iostream>
 #include"thumbnailerdialog.h"
 #include"thumblistener.h"
 
 
 
 void MessageHandler(QtMsgType type,const QMessageLogContext &context,const QString &msg){
-    static QTextStream outStream(stdout);
     Q_UNUSED(context);
+    static std::mutex MessageHandlerMutex;
     QString level;
     if(type==QtDebugMsg) level=QStringLiteral("Debug: ");
     else if(type==QtWarningMsg) level=QStringLiteral("Warn:  ");
     else if(type==QtCriticalMsg) level=QStringLiteral("Error: ");
     else if(type==QtFatalMsg) level=QStringLiteral("Fatal: ");
     else if(type==QtInfoMsg) level=QStringLiteral("Info:  ");
-    outStream<<(level+msg)<<Qt::endl;
-    outStream.flush();
+
+    std::lock_guard<std::mutex> message_locker(MessageHandlerMutex);
+    QByteArray outstr=QString(level+msg).toLocal8Bit();
+    std::cout<<outstr.data()<<std::endl;
 //    td->show_info(level+msg);
 }
 

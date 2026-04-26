@@ -457,7 +457,7 @@ uint32_t rgb_to_index(const uint8_t* pImageDataRGB, uint32_t numPixel, uint32_t 
     transIndex = cnt;
     for(i = 0; i < numPixel; ++i) {
       if(!hasAlpha && pBef) {
-        if(memcmp(&pImageData[sizePixel * i], &pBef[befFmtChan * i], 3) == 0) {
+        if(memcmp(&pImageDataRGB[sizePixel * i], &pBef[befFmtChan * i], 3) == 0) {
           pImageData[i] = transIndex;
           continue;
         }

@@ -634,8 +634,8 @@ void ThumbnailerDialog::on_gif_recording_pushButton_clicked(){
             for(int i=0;i<(int)gif_image_list.size();++i){
                 //qDebug()<<"write gif image:"<<i;
                 QImage t_image=gif_image_list[i].scaled(img_size,Qt::IgnoreAspectRatio);
-                t_image=t_image.rgbSwapped(); //需要反色才是正常的效果,不知道为什么
-                encoder.push(t_image,dly/3+1); //经验数据
+//                t_image=t_image.rgbSwapped(); //需要反色才是正常的效果,不知道为什么 //2026-04-27: bug 已修复
+                encoder.push(t_image,dly); //dly/3+1 经验数据 //2026-04-27: 原先是把厘秒当毫秒了，现在已修复
                 progress=(i+1)*100/((int)gif_image_list.size());
                 ui->gif_recording_pushButton->setText("Progress: "+QString::number(progress)+"%");
                 QCoreApplication::processEvents(); //防止界面阻塞
