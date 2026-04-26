@@ -34,12 +34,14 @@ LIBS += \
 
 
 
+INCLUDEPATH += $$PWD/player
+
 SOURCES += \
-    $$PWD/ffmpegplayer.cpp \
     $$PWD/main.cpp \    # Don't Forget Remove This Line in .pri File
     $$PWD/thumbnailer.cpp \
-    $$PWD/videoplayer.cpp \
-    $$PWD/potplayer.cpp \
+    $$PWD/player/videoplayer.cpp \
+    $$PWD/player/ffmpegplayer.cpp \
+    $$PWD/player/potplayer.cpp \
     $$PWD/GIFWriter/cgif.cpp \
     $$PWD/GIFWriter/cgif_raw.cpp \
     $$PWD/GIFWriter/cgif_rgb.cpp \
@@ -48,10 +50,10 @@ SOURCES += \
     $$PWD/thumblistener.cpp
 
 HEADERS += \
-    $$PWD/ffmpegplayer.h \
     $$PWD/thumbnailer.h \
-    $$PWD/videoplayer.h \
-    $$PWD/potplayer.h \
+    $$PWD/player/videoplayer.h \
+    $$PWD/player/ffmpegplayer.h \
+    $$PWD/player/potplayer.h \
     $$PWD/GIFWriter/cgif.h \
     $$PWD/GIFWriter/cgif_raw.h \
     $$PWD/GIFWriter/gifencoder.h \
