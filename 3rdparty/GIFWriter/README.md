@@ -1,0 +1,1 @@
+通过 QImage 生成GIF动图，GifEncoder类（gifencoder.h/cpp）是对外调用的接口。

@@ -1,9 +1,9 @@
 #include"gifencoder.h"
 #include<QImage>
 
-GifEncoder::GifEncoder(QObject *parent) : QObject(parent) {}
+GifEncoder::GifEncoder(QObject *parent):QObject(parent){}
 
-bool GifEncoder::open(QString filename, int width, int height) {
+bool GifEncoder::open(QString filename,int width,int height){
     CGIFrgb_Config config;
     memset(&config, 0, sizeof(config));
     config.path = filename.toLocal8Bit().constData();
@@ -16,7 +16,7 @@ bool GifEncoder::open(QString filename, int width, int height) {
     return pGIF;
 }
 
-bool GifEncoder::push(QImage &image, int delayTime) {
+bool GifEncoder::push(QImage &image,int delayTime){
     if (pGIF == nullptr) {
         return false;
     }
@@ -33,7 +33,7 @@ bool GifEncoder::push(QImage &image, int delayTime) {
     return true;
 }
 
-bool GifEncoder::close() {
+bool GifEncoder::close(){
     if (cgif_rgb_close(pGIF) == CGIF_OK) {
         pGIF = nullptr;
         return true;
