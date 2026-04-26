@@ -20,21 +20,35 @@ CONFIG -= shared
 
 
 #==================== To Generate .pri File, You Should Copy Lines Below ======================
-# >>>>> Start Copy
+# >>>>>>>>>>>>>>>>>>>>>> Start Copy
 
 # Import FFmpeg
-INCLUDEPATH += $$PWD/ffmpeg/include
+INCLUDEPATH += $$PWD/3rdparty/ffmpeg/include
 LIBS += \
-	$$PWD/ffmpeg/lib/libavcodec.dll.a \
-	$$PWD/ffmpeg/lib/libavfilter.dll.a \
-	$$PWD/ffmpeg/lib/libavformat.dll.a \
-	$$PWD/ffmpeg/lib/libavutil.dll.a \
-	$$PWD/ffmpeg/lib/libswscale.dll.a
+	$$PWD/3rdparty/ffmpeg/lib/libavcodec.dll.a \
+	$$PWD/3rdparty/ffmpeg/lib/libavfilter.dll.a \
+	$$PWD/3rdparty/ffmpeg/lib/libavformat.dll.a \
+	$$PWD/3rdparty/ffmpeg/lib/libavutil.dll.a \
+	$$PWD/3rdparty/ffmpeg/lib/libswscale.dll.a
 # End FFmpeg
 
+# Import GIFWriter
+INCLUDEPATH += $$PWD/3rdparty/GIFWriter
+HEADERS += \
+    $$PWD/3rdparty/GIFWriter/cgif.h \
+    $$PWD/3rdparty/GIFWriter/cgif_raw.h \
+    $$PWD/3rdparty/GIFWriter/gifencoder.h
+SOURCES += \
+    $$PWD/3rdparty/GIFWriter/cgif.cpp \
+    $$PWD/3rdparty/GIFWriter/cgif_raw.cpp \
+    $$PWD/3rdparty/GIFWriter/cgif_rgb.cpp \
+    $$PWD/3rdparty/GIFWriter/gifencoder.cpp
+# End GIFWriter
 
 
 INCLUDEPATH += $$PWD/player
+INCLUDEPATH += $$PWD/api
+INCLUDEPATH += $$PWD/ui
 
 SOURCES += \
     $$PWD/main.cpp \    # Don't Forget Remove This Line in .pri File
@@ -42,11 +56,8 @@ SOURCES += \
     $$PWD/player/videoplayer.cpp \
     $$PWD/player/ffmpegplayer.cpp \
     $$PWD/player/potplayer.cpp \
-    $$PWD/GIFWriter/cgif.cpp \
-    $$PWD/GIFWriter/cgif_raw.cpp \
-    $$PWD/GIFWriter/cgif_rgb.cpp \
-    $$PWD/GIFWriter/gifencoder.cpp \
-    $$PWD/thumbnailerdialog.cpp \
+    $$PWD/3rdparty/GIFWriter/cgif.cpp \
+    $$PWD/ui/thumbnailerdialog.cpp \
     $$PWD/thumblistener.cpp
 
 HEADERS += \
@@ -54,17 +65,14 @@ HEADERS += \
     $$PWD/player/videoplayer.h \
     $$PWD/player/ffmpegplayer.h \
     $$PWD/player/potplayer.h \
-    $$PWD/GIFWriter/cgif.h \
-    $$PWD/GIFWriter/cgif_raw.h \
-    $$PWD/GIFWriter/gifencoder.h \
-    $$PWD/thumbnailerdialog.h \
+    $$PWD/ui/thumbnailerdialog.h \
     $$PWD/thumblistener.h \
-    $$PWD/thumbsgetter.hpp
+    $$PWD/api/thumbsgetter.hpp
 
 FORMS += \
-    $$PWD/thumbnailerdialog.ui
+    $$PWD/ui/thumbnailerdialog.ui
 
-# >>>>> End Copy
+# >>>>>>>>>>>>>>>>>>>>>> End Copy
 
 
 # Default rules for deployment.
