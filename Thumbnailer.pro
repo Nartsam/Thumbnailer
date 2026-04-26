@@ -56,7 +56,6 @@ SOURCES += \
     $$PWD/player/videoplayer.cpp \
     $$PWD/player/ffmpegplayer.cpp \
     $$PWD/player/potplayer.cpp \
-    $$PWD/3rdparty/GIFWriter/cgif.cpp \
     $$PWD/ui/thumbnailerdialog.cpp \
     $$PWD/thumblistener.cpp
 

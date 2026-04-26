@@ -9,7 +9,9 @@
 #include"videoplayer.h"
 #include"ffmpegplayer.h"
 #include"potplayer.h"
-#include"GIFWriter/gifencoder.h" //For Generate GIF
+#include"gifencoder.h" //For Generate GIF
+#include<windows.h>      //RegisterHotKey, GetAsyncKeyState等
+#include<QKeySequence>   //用于将Qt按键组合转为可读字符串(如"Ctrl+S")
 
 
 
@@ -27,6 +29,28 @@
 
 
 static const long long SliderPrecision=10; //进度条的精度的倒数(秒): e.g.如果为10,则精度为0.1秒
+//将Qt修饰键转换为Win32 MOD_*常量, 供RegisterHotKey使用
+static UINT qtModifiersToNative(Qt::KeyboardModifiers mod){
+    UINT n=0;
+    if(mod&Qt::ControlModifier) n|=MOD_CONTROL;
+    if(mod&Qt::AltModifier)     n|=MOD_ALT;
+    if(mod&Qt::ShiftModifier)   n|=MOD_SHIFT;
+    if(mod&Qt::MetaModifier)    n|=MOD_WIN;
+    return n;
+}
+//将Qt::Key转换为Win32虚拟键码(VK_*), Qt::Key_A~Z和0~9的值恰好与VK码相同
+static UINT qtKeyToNativeVk(Qt::Key key){
+    if(key>=Qt::Key_A&&key<=Qt::Key_Z) return key;
+    if(key>=Qt::Key_0&&key<=Qt::Key_9) return key;
+    if(key>=Qt::Key_F1&&key<=Qt::Key_F24) return VK_F1+(key-Qt::Key_F1);
+    switch(key){
+    case Qt::Key_Space:  return VK_SPACE;
+    case Qt::Key_Return: return VK_RETURN;
+    case Qt::Key_Escape: return VK_ESCAPE;
+    case Qt::Key_Tab:    return VK_TAB;
+    default: return 0;
+    }
+}
 ThumbnailerDialog::PlayerList ThumbnailerDialog::default_video_player=ThumbnailerDialog::Player_PotPlayer;
 
 
@@ -52,6 +76,10 @@ ThumbnailerDialog::ThumbnailerDialog(QWidget *parent,const QStringList &args):QD
     ui->slow_algo_checkBox->setChecked(Thumbnailer::DefaultSlowThumbnailsAlgorithm);
 }
 ThumbnailerDialog::~ThumbnailerDialog(){
+    //注销所有已注册的全局热键
+    for(const auto &e:registeredHotkeys) UnregisterHotKey((HWND)winId(),e.id);
+    registeredHotkeys.clear();
+    hotkeyIdToName.clear();
     delete player;
     delete ui;
     qDebug()<<"ThumbnailerDialog Exit.";
@@ -97,6 +125,8 @@ void ThumbnailerDialog::init(){
 
     set_video(QStringLiteral()); //初始没有视频. 需要在PathLabel, ListView初始化完成后调用
     set_buttons_icon();
+    // 注册默认的快捷键
+    set_global_hotkey("snap",Qt::ControlModifier,Qt::Key_S); //ctrl+s 捕获
 }
 
 void ThumbnailerDialog::setup_settings(){
@@ -261,6 +291,78 @@ void ThumbnailerDialog::resizeEvent(QResizeEvent* event){
     ui->video_widget_info_label->resize(ui->video_widget->size());
     player->refresh_output_widget_size();
     emit dialog_resize_signal(this->size());
+}
+//注册一个全局热键. 如果该名称已注册过,会先注销旧的再注册新的
+//注册成功后会同时记录到两个哈希表中,分别用于按名称查找和按ID查找
+void ThumbnailerDialog::set_global_hotkey(const QString &name,Qt::KeyboardModifiers modifiers,Qt::Key key){
+    clear_global_hotkey(name); //如果同名热键已存在,先注销
+    UINT nativeMod=qtModifiersToNative(modifiers);
+    UINT nativeVk=qtKeyToNativeVk(key);
+    if(nativeVk==0){
+        qWarning()<<"Unsupported key for global hotkey:"<<key;
+        return;
+    }
+    int id=nextHotkeyId++;
+    if(RegisterHotKey((HWND)winId(),id,nativeMod,nativeVk)){
+        registeredHotkeys[name]={id,nativeMod,nativeVk}; //记录: 名称->信息
+        hotkeyIdToName[id]=name;                          //记录: ID->名称
+        qDebug().noquote()<<QKeySequence(modifiers|key).toString()<<"registered as global hotkey"<<QString("\"%1\"").arg(name);
+    }
+    else qWarning()<<"Failed to register global hotkey"<<name<<", error:"<<GetLastError();
+}
+void ThumbnailerDialog::clear_global_hotkey(const QString &name){
+    auto it=registeredHotkeys.find(name);
+    if(it!=registeredHotkeys.end()){
+        UnregisterHotKey((HWND)winId(),it->id);
+        hotkeyIdToName.remove(it->id);
+        registeredHotkeys.erase(it);
+    }
+}
+//拦截Windows原生消息. 当收到WM_HOTKEY时,不立即执行动作,而是启动定时器等待按键松开
+//原因: 如果立即执行,槽函数内部可能会模拟按键(如PotPlayer的position()会模拟G键),
+//      此时Ctrl+S还没松开,就变成了Ctrl+S+G三键同按,导致第三方播放器触发了错误的功能
+bool ThumbnailerDialog::nativeEvent(const QByteArray &eventType,void *message,qintptr *result){
+    if(eventType=="windows_generic_MSG"){
+        MSG *msg=static_cast<MSG*>(message);
+        if(msg->message==WM_HOTKEY){
+            //wParam就是RegisterHotKey时传入的id,用它反查是哪个热键
+            auto it=hotkeyIdToName.find((int)msg->wParam);
+            if(it!=hotkeyIdToName.end()){
+                pendingHotkeyAction=it.value(); //记下要执行的动作名称,等按键松开后再执行
+                if(!hotkeyReleaseTimer){
+                    hotkeyReleaseTimer=new QTimer(this);
+                    hotkeyReleaseTimer->setInterval(20); //每20ms检测一次
+                    connect(hotkeyReleaseTimer,&QTimer::timeout,this,&ThumbnailerDialog::check_hotkey_release);
+                }
+                hotkeyReleaseTimer->start();
+                if(result) *result=0;
+                return true;
+            }
+        }
+    }
+    return QDialog::nativeEvent(eventType,message,result);
+}
+//定时器回调: 用GetAsyncKeyState检测热键涉及的每个物理键是否已松开
+//0x8000位表示该键当前是否被按下,全部松开后才执行dispatch
+void ThumbnailerDialog::check_hotkey_release(){
+    auto it=registeredHotkeys.find(pendingHotkeyAction);
+    if(it==registeredHotkeys.end()){
+        hotkeyReleaseTimer->stop();
+        return;
+    }
+    const auto &e=it.value();
+    if((e.nativeMod&MOD_CONTROL)&&(GetAsyncKeyState(VK_CONTROL)&0x8000)) return; //Ctrl还没松开
+    if((e.nativeMod&MOD_ALT)&&(GetAsyncKeyState(VK_MENU)&0x8000)) return;       //Alt还没松开
+    if((e.nativeMod&MOD_SHIFT)&&(GetAsyncKeyState(VK_SHIFT)&0x8000)) return;    //Shift还没松开
+    if((e.nativeMod&MOD_WIN)&&((GetAsyncKeyState(VK_LWIN)&0x8000)||(GetAsyncKeyState(VK_RWIN)&0x8000))) return;
+    if(GetAsyncKeyState(e.nativeVk)&0x8000) return; //主键还没松开
+    //全部松开,执行动作
+    hotkeyReleaseTimer->stop();
+    dispatch_global_hotkey(pendingHotkeyAction);
+}
+//根据热键名称调用对应的槽函数. 如果新增其他全局热键,在这里添加 else if 分支即可
+void ThumbnailerDialog::dispatch_global_hotkey(const QString &name){
+    if(name=="snap") on_snap_pushButton_clicked();
 }
 void ThumbnailerDialog::closeEvent(QCloseEvent* event){
     Q_UNUSED(event);

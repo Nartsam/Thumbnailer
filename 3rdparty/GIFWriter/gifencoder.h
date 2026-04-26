@@ -4,7 +4,7 @@
 #include<QObject>
 #include"cgif.h"
 
-class GifEncoder:public QObject {
+class GifEncoder:public QObject{
     Q_OBJECT
 public:
     explicit GifEncoder(QObject *parent = nullptr);

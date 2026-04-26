@@ -3,6 +3,7 @@
 
 #include<QDialog>
 #include<QStandardItemModel>
+#include<QHash>
 #include"thumbnailer.h"
 
 
@@ -42,12 +43,17 @@ public:
     void set_video_player_by_name(PlayerList player_name);
     void set_print_image_save_path(bool flag);
 
+    /*  全局热键: 通过Win32 RegisterHotKey实现,窗口在后台时也能响应  */
+    void set_global_hotkey(const QString &name,Qt::KeyboardModifiers modifiers,Qt::Key key); //按名称注册,如set_global_hotkey("snap",Ctrl,S)
+    void clear_global_hotkey(const QString &name); //按名称注销
+
 protected:
     void closeEvent(QCloseEvent* event)override;
     void resizeEvent(QResizeEvent* event)override;
     bool eventFilter(QObject *watched,QEvent *event)override;
     void keyPressEvent(QKeyEvent *event)override;
     void showEvent(QShowEvent *event)override;
+    bool nativeEvent(const QByteArray &eventType,void *message,qintptr *result)override; //接收WM_HOTKEY消息
 
 private:
     void init();
@@ -64,6 +70,8 @@ private:
     void set_buttons_icon();
 
     void set_playpause_button_icon(int state);
+    void dispatch_global_hotkey(const QString &name); //根据热键名称分发到对应的槽函数,新增热键时在此添加映射
+    void check_hotkey_release(); //轮询检测所有按键是否已松开,松开后才真正触发动作
 
 signals:
     void dialog_resize_signal(QSize size); //窗口大小发生变化时触发该信号,返回窗口大小
@@ -123,6 +131,14 @@ private:
     bool hide_window_when_generating; //如果为true,生成缩略图时会隐藏窗口
     bool print_image_save_path; //如果为true,会打印保存图像的路径
     bool no_gui{false};
+    /* 全局热键相关 */
+    struct HotkeyInfo{int id;unsigned int nativeMod;unsigned int nativeVk;};
+    QHash<QString,HotkeyInfo> registeredHotkeys; //名称 -> 热键信息 (用于注册/注销/查询按键状态)
+    QHash<int,QString> hotkeyIdToName;           //热键ID -> 名称 (用于nativeEvent中反查是哪个热键触发的)
+    int nextHotkeyId{1};                         //自增ID,每注册一个热键分配一个唯一ID给RegisterHotKey
+    QString pendingHotkeyAction;                 //等待按键松开后要执行的热键名称
+    QTimer *hotkeyReleaseTimer{nullptr};         //定时器,每20ms检测一次按键是否全部松开
+    // 默认播放器
     static PlayerList default_video_player;
 };
 
