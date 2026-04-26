@@ -1,6 +1,6 @@
 ## Thumbnailer
 
-为视频文件生成缩略图，基于 ffmpeg 6.0，使用 Qt6 制作界面，通过 qmake 构建
+为视频文件生成缩略图，基于 FFmpeg 6.0，使用 Qt6 制作界面，通过 qmake 构建
 
 ##### 基本用法
 
