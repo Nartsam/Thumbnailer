@@ -14,7 +14,7 @@
 
 `ThumbListener` 类用于在后台新开一个线程监听有没有输入，并作出响应。
 `player/` 文件夹下的类通过实现 `VideoPlayer` 中的接口实现视频播放功能。
-`api/thumbsgetter.hpp` 是接收方负责调用本程序功能的实现代码，它会放在另一个项目中运行。
+`api/ThumbsGetter.hpp` 是接收方负责调用本程序功能的实现代码，它会放在另一个项目中运行。
 `3rdparty/` 文件夹下存放用到的第三方工具:
     - ffmpeg: 官方的 ffmpeg 6.0 源码
     - GIFWriter: 生成 gif 图片

@@ -66,7 +66,7 @@ HEADERS += \
     $$PWD/player/potplayer.h \
     $$PWD/ui/thumbnailerdialog.h \
     $$PWD/thumblistener.h \
-    $$PWD/api/thumbsgetter.hpp
+    $$PWD/api/ThumbsGetter.hpp
 
 FORMS += \
     $$PWD/ui/thumbnailerdialog.ui
