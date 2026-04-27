@@ -46,11 +46,11 @@ void ThumbListener::write_str(const QString &str){
 void ThumbListener::write_json(const QJsonObject &obj){
     QJsonDocument jdoc(obj);
     QString str=jdoc.toJson();
-    if(transfer_to_local8bit) str=QString::fromLocal8Bit(str.toLocal8Bit());
+    if(use_local8bit) str=QString::fromLocal8Bit(str.toLocal8Bit());
     write_str(str.simplified());
 }
-void ThumbListener::set_transfer_to_local8bit(bool flag){
-    transfer_to_local8bit=flag;
+void ThumbListener::set_use_local8bit(bool flag){
+    use_local8bit=flag;
 }
 
 QString ThumbListener::data_root_dir(){
@@ -70,8 +70,7 @@ void ThumbListener::ensure_data_dirs(){
 void ThumbListener::cleanup_single_dir(){
     QDir dir(single_dir());
     if(dir.exists()){
-        for(const QString &file:dir.entryList(QDir::Files))
-            dir.remove(file);
+        for(const QString &file:dir.entryList(QDir::Files)) dir.remove(file);
     }
 }
 
@@ -79,7 +78,7 @@ QString ThumbListener::save_single_thumbnail(const QImage &image,int index){
     ensure_data_dirs();
     QString filename=single_dir()+QString("thumb_%1_%2.png").arg(single_thumb_count++).arg(index);
     if(image.save(filename,"PNG")) return filename;
-    qCritical()<<"保存单张缩略图失败:"<<filename;
+    qCritical()<<"Save Single Thumbnails Failed:"<<filename;
     return QString();
 }
 
@@ -98,7 +97,7 @@ void ThumbListener::run(){
     while(ok&&!is_stopped){
         ok=ReadFile(hStdinDup,chBuf,sizeof(chBuf),&dwRead,NULL);
         if(ok&&dwRead!=0&&!is_stopped){
-            QString input=transfer_to_local8bit?QString::fromLocal8Bit(chBuf,dwRead):QString::fromUtf8(chBuf,dwRead);
+            QString input=use_local8bit?QString::fromLocal8Bit(chBuf,dwRead):QString::fromUtf8(chBuf,dwRead);
             line_buffer.append(input);
             //按行分割处理,保留不完整的最后一行到下次读取时拼接
             while(true){
@@ -127,23 +126,24 @@ QThread *ThumbListener::create_thread(QObject *parent){
     return thread;
 }
 void ThumbListener::parse_json_str(const QString &jstr){
-    QJsonParseError parseError; QByteArray tmpba=transfer_to_local8bit?jstr.toLocal8Bit():jstr.toUtf8();
+    QJsonParseError parseError; QByteArray tmpba=use_local8bit?jstr.toLocal8Bit():jstr.toUtf8();
     QJsonDocument jsonDoc=QJsonDocument::fromJson(tmpba,&parseError);
     if(parseError.error!=QJsonParseError::NoError){
-        qCritical()<<"[parse_json_str] Parse Error:"<<parseError.errorString(); return;
+        qCritical()<<"[ParseJsonStr] Parse Failed:"<<parseError.errorString(); return;
     }
     if(!jsonDoc.isObject()){
-        qCritical()<<"[parse_json_str] Result Not Object."; return;
+        qCritical()<<"[ParseJsonStr] Result Not Object."; return;
     }
     QJsonObject obj=jsonDoc.object();
     QString opt=obj.value("opt").toString().toLower();
 
     if(start_operations.contains(opt)) start_operations[opt](obj);
-    else qWarning()<<QString("[parse_json_str] Unknown Command: '%1', Detail: %2").arg(opt,jstr);
+    else qWarning()<<QString("[ParseJsonStr] Unknown Command: '%1', RawStr: %2").arg(opt,jstr);
 }
 
 void ThumbListener::init_start_operations(){
-    if(!start_operations.isEmpty()) return;
+    if(!start_operations.isEmpty()) return; //只初始化一次
+    // >>>>> 指令: get_media_info
     start_operations["get_media_info"]=[this](const QJsonObject &obj){
         QString file_path=obj.value("file_path").toString();
         QString res_str="Success";
@@ -160,7 +160,7 @@ void ThumbListener::init_start_operations(){
         res["result"]=res_str;
         write_json(res);
     };
-
+    // >>>>> 指令: get_thumbnails
     start_operations["get_thumbnails"]=[this](const QJsonObject &obj){
         /*
          * @file_path:
@@ -209,9 +209,10 @@ void ThumbListener::init_start_operations(){
                     if(!thumb_path.isEmpty()){
                         res["thumb_path"]=thumb_path;
                         res["result"]="Success";
-                    }else{
+                    }
+                    else{
                         res["thumb_path"]="";
-                        res["result"]="Save Thumbnail Failed";
+                        res["result"]="Save Thumbnails Failed";
                     }
                     write_json(res);
                 }
@@ -233,7 +234,7 @@ void ThumbListener::init_start_operations(){
             }
         },Qt::QueuedConnection);
     };
-
+    // >>>>> 指令: get_merged_thumbnails
     start_operations["get_merged_thumbnails"]=[this](const QJsonObject &obj){
         /*
          * ---------- Input -----------
@@ -295,11 +296,11 @@ void ThumbListener::init_start_operations(){
             }
         },Qt::QueuedConnection);
     };
-
+    // >>>>> 指令: set_window_opacity
     start_operations["set_window_opacity"]=[this](const QJsonObject &obj){
         set_window_opacity(obj);
     };
-
+    // >>>>> 指令: delete_file
     start_operations["delete_file"]=[](const QJsonObject &obj){
         //删除ztbso目录下的临时文件,仅允许删除ztbso目录内的文件
         QString file_path=obj.value("file_path").toString();
@@ -309,7 +310,7 @@ void ThumbListener::init_start_operations(){
             QFile::remove(fi.absoluteFilePath());
         }
     };
-
+    // >>>>> 指令: exit
     start_operations["exit"]=[this](const QJsonObject&){
         stop();
         emit close_requested();

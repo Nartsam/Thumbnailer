@@ -9,7 +9,6 @@
 #include<QVector>
 #include<atomic>
 #include<mutex>
-#include<memory>
 #include<functional>
 
 
@@ -22,7 +21,6 @@
 */
 
 
-
 class ThumbListener:public QThread{
     Q_OBJECT
 public:
@@ -31,13 +29,13 @@ public:
     void stop();
     void write_str(const QString &str); //最好不要含有换行符
     void write_json(const QJsonObject &obj);
-    void set_transfer_to_local8bit(bool flag);
+    void set_use_local8bit(bool flag);
 
     // 数据目录管理
     static QString data_root_dir();
     static QString merged_dir();
     static QString single_dir();
-    static void ensure_data_dirs();
+    static void ensure_data_dirs(); //确保 merged_dir() 和 single_dir() 存在
     static void cleanup_single_dir();
 
 signals:
@@ -52,17 +50,17 @@ protected:
 private:
     QThread* create_thread(QObject *parent=nullptr);
     void parse_json_str(const QString &jstr);
-    void init_start_operations();
+    void init_start_operations(); //创建 start 类行为的 lambda 表达式
     void set_window_opacity(const QJsonObject &obj);
     QString save_single_thumbnail(const QImage &image,int index);
 
 private:
     std::mutex write_lock;
     std::atomic<bool> is_stopped{false};
-    bool transfer_to_local8bit{true};
+    bool use_local8bit{true}; //程序的输入/输出都按照 Local8bit 编解码
     std::unique_ptr<QTextStream> out_stream{nullptr};
     int single_thumb_count{0};
-    QMap<QString,std::function<void(const QJsonObject &obj)>> start_operations;
+    QMap<QString,std::function<void(const QJsonObject &obj)>> start_operations; //<指令名-对应的lambda函数>
     QVector<QThread*> thread_list;
     void *stdin_dup_handle{nullptr}; //ReadFile用的句柄副本,用于CancelIoEx中断阻塞读取
 };

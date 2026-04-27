@@ -68,8 +68,8 @@ public:
      * 缩略图保存位置由Thumbnailer进程管理(ztbso/merged/),通过thumbs_path字段返回
     */
     void start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name);
-    void start_thumbnailer_dialog(double opacity=1.0);
     void start_get_media_info(const QString &file_path);
+    void show_thumbnailer_dialog(double opacity=1.0);
     static bool GetMediaInfo(const QString &file_path,QObject *slot_object,int &width,int &height,long long &duration);
 
 private:
@@ -81,28 +81,26 @@ private:
     */
     bool custom_parsed(const QJsonObject &obj);
 
+    /* 预设好的JSON解析格式, 由 custom_parsed() 检查 */
+
+    // 获取视频信息的结果
     bool parse_as_media_info_result(const QJsonObject &obj);
-
     bool parse_as_merged_thumbnails_result(const QJsonObject &obj);
-
     bool parse_as_thumbnails_result(const QJsonObject &obj);
-
     bool is_progress_json(const QJsonObject &obj);
 
+
     void process_line(const QByteArray &str); //接收到文本输入,一行一行的处理
-
     void write_json(const QJsonObject &obj);
-
     bool str_not_a_json(const QByteArray &str); //判断str是不是一个单纯的输出语句,而不是要解析的json
 
 
 private slots:
     void ready_read_output();
-
     void process_finished(int exit_code);  //Thumbnailer进程结束
 
 private:
-    bool transfer_to_local8bit{false}; //将文本转换为Local8Bit后再写入process,否则以UTF-8格式写入
+    bool use_local8bit{false}; //程序的输入/输出都按照 Local8bit 编解码,否则以UTF-8格式写入
     bool print_debug_info{false};
     QProcess process;
 };
@@ -147,7 +145,7 @@ inline void ThumbsGetter::start_get_merged_thumbnails(const QString &file_path,i
     write_json(obj);
 }
 
-inline void ThumbsGetter::start_thumbnailer_dialog(double opacity){
+inline void ThumbsGetter::show_thumbnailer_dialog(double opacity){
     QJsonObject obj;
     obj["opt"]="start_dialog"; obj["opacity"]=opacity;
     write_json(obj);
@@ -243,23 +241,25 @@ inline bool ThumbsGetter::is_progress_json(const QJsonObject &obj){
 
 inline void ThumbsGetter::process_line(const QByteArray &str){ //接收到文本输入,一行一行的处理
     if(str_not_a_json(str)){ //不是JSON格式的数据,可能是调试语句,直接打印
-        qDebug().noquote()<<"[ThumbnailerPrint]:"<<str;
+        qDebug().noquote()<<"[TbsGetRaw]:"<<str;
         return;
     }
-    if(print_debug_info) qDebug().noquote()<<"[OriginalRead]:"<<str;
+    if(print_debug_info) qDebug().noquote()<<"[RawStr]:"<<str;
     QJsonParseError parseError;
     QJsonDocument jsonDoc=QJsonDocument::fromJson(str,&parseError);
     if(parseError.error!=QJsonParseError::NoError){
-        qCritical()<<"ThumbsGetter: Parse Error:"<<parseError.errorString()<<", Input:"<<str.size();
+        qCritical()<<"ThumbsGetter: Parse Error:"<<parseError.errorString()<<", Input Size:"<<str.size();
         return;
     }
     if(!jsonDoc.isObject()){qCritical()<<"ThumbsGetter: Result Not Object."; return;}
     QJsonObject obj=jsonDoc.object();
+    // 判断是不是预设好解析方式的 JSON
     if(is_progress_json(obj)) return;
     if(obj.value("result").toString().isEmpty()){ //not a result json
         qWarning()<<"ThumbsGetter: Got a Json Object, but Object not a Result Object:"<<str; return;
     }
     if(custom_parsed(obj)) return; //若解析到了对应的操作,信号当时就触发了,这里就不用管了
+    // 没有对这个 JSON 预设好解析方式，直接触发 got_result 信号，由接收方自行解析
     if(print_debug_info) qDebug()<<"Will Emit got_result()";
     emit got_result(obj);
 }
@@ -268,10 +268,10 @@ inline void ThumbsGetter::write_json(const QJsonObject &obj){
     QJsonDocument jdoc(obj);
     QString str=jdoc.toJson();
     if(str.trimmed().isEmpty()) return;
-    if(transfer_to_local8bit) str=QString::fromLocal8Bit(str.toLocal8Bit());
+    if(use_local8bit) str=QString::fromLocal8Bit(str.toLocal8Bit());
     str=str.simplified()+"\n";
-    process.write(transfer_to_local8bit?str.toLocal8Bit():str.toUtf8());
-    if(print_debug_info) qDebug()<<"write:"<<(transfer_to_local8bit?str.toLocal8Bit():str.toUtf8());
+    process.write(use_local8bit?str.toLocal8Bit():str.toUtf8());
+    if(print_debug_info) qDebug()<<"write:"<<(use_local8bit?str.toLocal8Bit():str.toUtf8());
 }
 
 inline bool ThumbsGetter::str_not_a_json(const QByteArray &str){ //判断str是不是一个单纯的输出语句,而不是要解析的json
