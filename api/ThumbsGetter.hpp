@@ -57,6 +57,8 @@ signals:
     void image_generated(unsigned long long task_id,int pos,QImage image);
     //image_path 为空表示操作失败
     void local_image_generated(unsigned long long task_id,QString image_path);
+    //thumbnailer dialog 在本地生成图片时触发
+    void dialog_image_generated(QString image_path);
     // w<0 或 h<0 表示操作失败
     void media_info_generated(unsigned long long task_id,int width,int height,long long duration);
     /*
@@ -66,16 +68,15 @@ signals:
     */
     void got_result(QJsonObject result_json);
 
-public:
-    //=================================================== 进程启动 ================================================================
 
+public: // 进程启动
     /*
      * 获取一张一张的缩略图, 每生成一张触发一次信号
      * @file_path: 媒体文件路径
      * @count: 总共要生成多少张
     */
     unsigned long long start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list,
-                                           bool slow_algorithm=false,bool remove_watermark=false);
+                                            bool slow_algorithm=false,bool remove_watermark=false);
 
     /*
      * 获取一整张的缩略图, 生成完成后通过信号给出图片在本地文件中的路径
@@ -86,8 +87,12 @@ public:
     */
     unsigned long long start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name,
                                                    bool slow_algorithm=false,bool remove_watermark=false);
+
     unsigned long long start_get_media_info(const QString &file_path);
+    void set_video_path(const QString &file_path);
+    void set_dialog_position(int x,int y,int width,int height);
     void show_thumbnailer_dialog(double opacity=1.0);
+    void hide_thumbnailer_dialog();
     static MediaInfo GetMediaInfo(const QString &file_path); //返回无效的 MediaInfo 表示获取失败
 
 private:
@@ -105,6 +110,7 @@ private:
     bool parse_as_media_info_result(const QJsonObject &obj);
     bool parse_as_merged_thumbnails_result(const QJsonObject &obj);
     bool parse_as_thumbnails_result(const QJsonObject &obj);
+    bool parse_as_dialog_image_result(const QJsonObject &obj);
     bool is_progress_json(const QJsonObject &obj);
 
 
@@ -178,7 +184,27 @@ inline unsigned long long ThumbsGetter::start_get_merged_thumbnails(const QStrin
 
 inline void ThumbsGetter::show_thumbnailer_dialog(double opacity){
     QJsonObject obj;
-    obj["opt"]="start_dialog"; obj["opacity"]=opacity;
+    obj["opt"]="show"; obj["opacity"]=opacity;
+    write_json(obj);
+}
+inline void ThumbsGetter::hide_thumbnailer_dialog(){
+    QJsonObject obj;
+    obj["opt"]="hide";
+    write_json(obj);
+}
+
+inline void ThumbsGetter::set_video_path(const QString &file_path){
+    QJsonObject obj;
+    obj["opt"]="set_video_path";
+    obj["file_path"]=file_path;
+    write_json(obj);
+}
+
+inline void ThumbsGetter::set_dialog_position(int x,int y,int width,int height){
+    QJsonObject obj;
+    obj["opt"]="set_dialog_position";
+    obj["x"]=x; obj["y"]=y;
+    obj["width"]=width; obj["height"]=height;
     write_json(obj);
 }
 
@@ -229,6 +255,7 @@ inline bool ThumbsGetter::custom_parsed(const QJsonObject &obj){
     if(parse_as_media_info_result(obj)) return true;
     if(parse_as_merged_thumbnails_result(obj)) return true;
     if(parse_as_thumbnails_result(obj)) return true;
+    if(parse_as_dialog_image_result(obj)) return true;
     if(is_progress_json(obj)) return true;
     return false;
 }
@@ -265,6 +292,16 @@ inline bool ThumbsGetter::parse_as_thumbnails_result(const QJsonObject &obj){
         write_json({{"opt","delete_file"},{"file_path",thumb_path}});
     }
     emit image_generated((unsigned long long)obj.value("task_id").toInteger(),pos,image);
+    return true;
+}
+
+inline bool ThumbsGetter::parse_as_dialog_image_result(const QJsonObject &obj){
+    if(obj.value("opt")!="dialog_image_generated"||!obj.contains("result")) return false; //不是该格式
+    QString image_path=obj.value("image_path").toString();
+    if(obj.value("result").toString()!="Success"){
+        image_path.clear();
+    }
+    emit dialog_image_generated(image_path);
     return true;
 }
 

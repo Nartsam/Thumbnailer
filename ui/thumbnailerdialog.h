@@ -28,6 +28,7 @@ public:
     bool set_video(const QString &video_path);
     bool set_thumbs_dir(const QString &t_dir);
     bool set_thumbs_name(const QString &t_name);
+    void set_fixed_thumbs_dir(const QString &t_dir);
     void display();
 
     //设置cur_video Edit, thumbs_path Edit, change_thumbs_path Button 是否可编辑
@@ -131,6 +132,7 @@ private:
     bool hide_window_when_generating; //如果为true,生成缩略图时会隐藏窗口
     bool print_image_save_path; //如果为true,会打印保存图像的路径
     bool no_gui{false};
+    QString fixed_thumbs_dir;
     /* 全局热键相关 */
     struct HotkeyInfo{int id;unsigned int nativeMod;unsigned int nativeVk;};
     QHash<QString,HotkeyInfo> registeredHotkeys; //名称 -> 热键信息 (用于注册/注销/查询按键状态)

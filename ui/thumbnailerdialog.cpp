@@ -4,6 +4,7 @@
 #include<QThread>
 #include<QMimeData>
 #include<QFileDialog>
+#include<QDir>
 #include<QMessageBox>
 #include<QCloseEvent>
 #include"videoplayer.h"
@@ -89,9 +90,8 @@ void ThumbnailerDialog::set_arguments(const QStringList &arg_list){
     if(arg_list.contains("-nogui",Qt::CaseInsensitive)) no_gui=true;
     if(arg_list.contains("-nohotkey",Qt::CaseInsensitive)) no_hotkey=true;
 }
-
 void ThumbnailerDialog::show_info(const QString &str){
-    ui->current_video_lineEdit->setText(str);
+    ui->info_label->setText(str);
 }
 void ThumbnailerDialog::init(){
     //player的初始化不要放置的过于靠后,部分组件初始化时会触发它的成员函数
@@ -150,13 +150,23 @@ bool ThumbnailerDialog::set_thumbs_dir(const QString &t_dir){
 bool ThumbnailerDialog::set_thumbs_name(const QString &t_name){
     return thumbnailer.set_thumbs_name(t_name);
 }
+void ThumbnailerDialog::set_fixed_thumbs_dir(const QString &t_dir){
+    fixed_thumbs_dir=t_dir;
+    if(!fixed_thumbs_dir.isEmpty()&&!fixed_thumbs_dir.endsWith('/')) fixed_thumbs_dir+='/';
+    QDir().mkpath(fixed_thumbs_dir);
+    if(!thumbnailer.get_video_path().isEmpty()){
+        ui->thumbs_dir_lineEdit->setText(fixed_thumbs_dir);
+        set_thumbs_dir(fixed_thumbs_dir);
+    }
+    ui->change_dir_pushButton->setEnabled(fixed_thumbs_dir.isEmpty());
+}
 void ThumbnailerDialog::display(){
     if(!no_gui) this->show();
 }
 void ThumbnailerDialog::set_video_file_widgets_enable(bool flag){
     ui->current_video_lineEdit->setEnabled(flag);
     ui->thumbs_dir_lineEdit->setEnabled(flag);
-    ui->change_dir_pushButton->setEnabled(flag);
+    ui->change_dir_pushButton->setEnabled(flag&&fixed_thumbs_dir.isEmpty());
 }
 QString ThumbnailerDialog::get_thumbnails_path(){
     return thumbnailer.get_thumbnails_path();
@@ -205,6 +215,7 @@ void ThumbnailerDialog::set_ui_state(bool flag){
     ui->no_watermark_checkBox->setEnabled(flag); ui->play_spd_comboBox->setEnabled(flag); ui->volume_comboBox->setEnabled(flag);
     ui->thumbs_listView->setEnabled(flag); ui->thumbs_dir_lineEdit->setEnabled(flag); ui->current_video_lineEdit->setEnabled(flag);
     ui->column_spinBox->setEnabled(flag); ui->row_spinBox->setEnabled(flag);
+    if(!fixed_thumbs_dir.isEmpty()) ui->change_dir_pushButton->setEnabled(false);
 }
 
 void ThumbnailerDialog::set_video_player(VideoPlayer *new_player){
@@ -376,17 +387,19 @@ void ThumbnailerDialog::closeEvent(QCloseEvent* event){
 /******************* Slot Functions ********************/
 
 void ThumbnailerDialog::video_changed_slot(const QString &video_path){
+    thumbnailer.set_video(video_path);
     if(video_path.isEmpty()){ //Empty
         ui->current_video_lineEdit->setText("No Video Selected.");
         ui->thumbs_dir_lineEdit->setText("");
     }
     else{
         ui->current_video_lineEdit->setText(video_path);
-        ui->thumbs_dir_lineEdit->setText(QFileInfo(video_path).absolutePath());
+        QString thumbs_dir=fixed_thumbs_dir.isEmpty()?QFileInfo(video_path).absolutePath():fixed_thumbs_dir;
+        ui->thumbs_dir_lineEdit->setText(thumbs_dir);
+        set_thumbs_dir(thumbs_dir); // set_video()会重置目录,这里显式恢复最终生成目录
     }
     snaplist_model->clear(); update_thumbs_cnt_label(); //Clear Thumbs List
     snapped_image_list.clear();
-    thumbnailer.set_video(video_path);
 }
 
 void ThumbnailerDialog::state_changed_slot(int state){
@@ -487,6 +500,7 @@ void ThumbnailerDialog::on_select_pushButton_clicked(){
     }
 }
 void ThumbnailerDialog::on_change_dir_pushButton_clicked(){
+    if(!fixed_thumbs_dir.isEmpty()) return; // API模式下生成内容固定保存到ztbso目录
     if(ui->thumbs_dir_lineEdit->text().isEmpty()){
         QMessageBox::warning(this,"无效操作","当前无媒体文件"); return;
     }

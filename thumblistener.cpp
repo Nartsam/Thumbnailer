@@ -4,6 +4,7 @@
 #include<QJsonDocument>
 #include<QApplication>
 #include<QDir>
+#include<algorithm>
 #include<windows.h>
 
 
@@ -78,7 +79,7 @@ QString ThumbListener::save_single_thumbnail(const QImage &image,int index){
     ensure_data_dirs();
     QString filename=single_dir()+QString("thumb_%1_%2.png").arg(single_thumb_count++).arg(index);
     if(image.save(filename,"PNG")) return filename;
-    qCritical()<<"Save Single Thumbnails Failed:"<<filename;
+    qCritical().noquote()<<"Save Single Thumbnails Failed:"<<filename;
     return QString();
 }
 
@@ -106,7 +107,7 @@ void ThumbListener::run(){
                 QString line=line_buffer.left(idx).trimmed();
                 line_buffer=line_buffer.mid(idx+1);
                 if(!line.isEmpty()){
-                    emit show_info_requested("Read Input: "+line);
+//                    emit show_info_requested("Read Input: "+line);
                     parse_json_str(line);
                 }
             }
@@ -129,16 +130,34 @@ void ThumbListener::parse_json_str(const QString &jstr){
     QJsonParseError parseError; QByteArray tmpba=use_local8bit?jstr.toLocal8Bit():jstr.toUtf8();
     QJsonDocument jsonDoc=QJsonDocument::fromJson(tmpba,&parseError);
     if(parseError.error!=QJsonParseError::NoError){
-        qCritical()<<"[ParseJsonStr] Parse Failed:"<<parseError.errorString(); return;
+        qCritical().noquote()<<"[ParseJsonStr] Parse Failed:"<<parseError.errorString(); return;
     }
     if(!jsonDoc.isObject()){
-        qCritical()<<"[ParseJsonStr] Result Not Object."; return;
+        qCritical().noquote()<<"[ParseJsonStr] Result NOT a JSON Object."; return;
     }
     QJsonObject obj=jsonDoc.object();
     QString opt=obj.value("opt").toString().toLower();
-
     if(start_operations.contains(opt)) start_operations[opt](obj);
-    else qWarning()<<QString("[ParseJsonStr] Unknown Command: '%1', RawStr: %2").arg(opt,jstr);
+    else if(opt=="show"){ //显示窗口
+        double opacity=std::clamp(obj["opacity"].toDouble(),0.0,1.0); //控制窗口的opacity属性(越低越不可见)
+        if(opacity==0) opacity=1.0; // 0 是无效参数
+        emit show_requested(opacity);
+        //write_json({{"opt",obj.value("opt").toString()},{"result","Success"}});
+    }
+    else if(opt=="hide"){ //隐藏窗口(不是最小化)
+        emit hide_requested();
+        //write_json({{"opt",obj.value("opt").toString()},{"result","Success"}});
+    }
+    else if(opt=="set_video_path"){
+        emit set_video_requested(obj.value("file_path").toString());
+    }
+    else if(opt=="set_dialog_position"){
+        emit set_dialog_position_requested(obj.value("x").toInt(-1),
+                                           obj.value("y").toInt(-1),
+                                           obj.value("width").toInt(-1),
+                                           obj.value("height").toInt(-1));
+    }
+    else qWarning().noquote()<<QString("[ParseJsonStr] Unknown Command: '%1', RawStr: %2").arg(opt,jstr);
 }
 
 void ThumbListener::init_start_operations(){
@@ -150,7 +169,7 @@ void ThumbListener::init_start_operations(){
         QString res_str="Success";
         VideoInfo info{0,0,0,0};
         if(!QFileInfo::exists(file_path)){
-            qCritical()<<"[get_media_info] File not Exists:"<<file_path;
+            qCritical().noquote()<<"[get_media_info] File not Exists:"<<file_path;
             res_str="File not Exists";
         }
         else info=Thumbnailer::get_video_info(file_path);
@@ -341,5 +360,5 @@ void ThumbListener::set_window_opacity(const QJsonObject &obj){
         emit set_opacity_requested(x); res["result"]="Success";
     }
     write_json(res);
-    qDebug()<<QString("set_window_opacity done: %1").arg(QString::number(x));
+    qDebug().noquote()<<QString("set_window_opacity done: %1").arg(QString::number(x));
 }

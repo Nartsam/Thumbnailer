@@ -43,6 +43,10 @@ signals:
     void show_info_requested(const QString &info);
     void close_requested();
     void set_opacity_requested(double opacity);
+    void show_requested(double opacity);
+    void hide_requested();
+    void set_video_requested(const QString &video_path);
+    void set_dialog_position_requested(int x,int y,int width,int height);
 
 protected:
     void run()override;
