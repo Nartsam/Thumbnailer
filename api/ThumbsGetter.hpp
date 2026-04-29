@@ -16,15 +16,33 @@ namespace ThumbsApi{
 /*
  * 推荐用法:
  * auto getter=new ThumbsGetter(this);
+ * auto task_id=getter->start_xxx(...);
  * connect(getter,<got_result() 或 某个特定操作的信号>,<处理这个操作的函数>){
+ *      if(got_task_id!=task_id) return; //通过task_id匹配结果
  *      // do something
  *      getter->deleteLater(); //完成后销毁
  * }
- * getter->start_xxx
 */
 
 inline QString ThumbnailerExePath="N:/OI/Code/QtProject/ThumbBuild/build-Thumbnailer-Desktop_Qt_6_5_2_MinGW_64_bit-Release/release/Thumbnailer.exe";
 
+class MediaInfo{
+public:
+    int width{0};
+    int height{0};
+    long long duration{0};
+    double fps{0};
+
+    MediaInfo()=default;
+    MediaInfo(int width,int height,long long duration=0,double fps=0){this->width=width; this->height=height; this->duration=duration; this->fps=fps;}
+    void clear(){width=0; height=0; duration=0; fps=0;}
+    bool empty()const{
+        return duration==0&&width==0&&height==0&&fps==0;
+    }
+    bool valid()const{ //判断是否存在负数项
+        return !(width<0||height<0||duration<0||fps<0);
+    }
+};
 
 class ThumbsGetter:public QObject{
     Q_OBJECT
@@ -34,13 +52,13 @@ public:
 
 signals:
     // 生成缩略图的进度变化了: progress: 0~100
-    void thumbs_generating_progress_changed(QString file_path,int progress);
-    //无效的QImage表示操作失败
-    void image_generated(QString file_path,int pos,QImage image);
-    //image_path为空表示操作失败
-    void local_image_generated(QString file_path,QString image_path);
-    //w或h < 0 表示操作失败
-    void media_info_generated(QString file_path,int width,int height,long long duration);
+    void thumbs_generating_progress_changed(unsigned long long task_id,int progress);
+    //无效的 QImage 表示操作失败
+    void image_generated(unsigned long long task_id,int pos,QImage image);
+    //image_path 为空表示操作失败
+    void local_image_generated(unsigned long long task_id,QString image_path);
+    // w<0 或 h<0 表示操作失败
+    void media_info_generated(unsigned long long task_id,int width,int height,long long duration);
     /*
      * 该json中必须包含以下两个字段:
      * @opt: 执行的操作
@@ -49,8 +67,6 @@ signals:
     void got_result(QJsonObject result_json);
 
 public:
-
-
     //=================================================== 进程启动 ================================================================
 
     /*
@@ -58,7 +74,7 @@ public:
      * @file_path: 媒体文件路径
      * @count: 总共要生成多少张
     */
-    void start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list);
+    unsigned long long start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list);
 
     /*
      * 获取一整张的缩略图, 生成完成后通过信号给出图片在本地文件中的路径
@@ -67,10 +83,10 @@ public:
      * @thumbs_name: 缩略图文件名(不含扩展名)
      * 缩略图保存位置由Thumbnailer进程管理(ztbso/merged/),通过thumbs_path字段返回
     */
-    void start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name);
-    void start_get_media_info(const QString &file_path);
+    unsigned long long start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name);
+    unsigned long long start_get_media_info(const QString &file_path);
     void show_thumbnailer_dialog(double opacity=1.0);
-    static bool GetMediaInfo(const QString &file_path,QObject *slot_object,int &width,int &height,long long &duration);
+    static MediaInfo GetMediaInfo(const QString &file_path); //返回无效的 MediaInfo 表示获取失败
 
 private:
     void stop_process(); //给process(Thumbniler.exe)写入"exit"让它停止
@@ -102,6 +118,7 @@ private slots:
 private:
     bool use_local8bit{false}; //程序的输入/输出都按照 Local8bit 编解码,否则以UTF-8格式写入
     bool print_debug_info{false};
+    unsigned long long next_task_id{1};
     QProcess process;
 };
 
@@ -112,7 +129,7 @@ inline ThumbsGetter::ThumbsGetter(QObject *parent):QObject{parent}{
     connect(&process,&QProcess::readyReadStandardOutput,this,&ThumbsGetter::ready_read_output);
     connect(&process,&QProcess::finished,this,&ThumbsGetter::process_finished);
     process.setProcessChannelMode(QProcess::MergedChannels);
-    process.start(ThumbnailerExePath,QStringList{"-nogui"});
+    process.start(ThumbnailerExePath,QStringList{"-nogui","-nohotkey"});
     process.waitForStarted();
 }
 
@@ -125,24 +142,30 @@ inline ThumbsGetter::~ThumbsGetter(){
     }
 }
 
-inline void ThumbsGetter::start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list){
+inline unsigned long long ThumbsGetter::start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list){
+    unsigned long long task_id=next_task_id++;
     QJsonObject obj;
     obj["opt"]="get_thumbnails";
     obj["file_path"]=file_path; obj["count"]=count;
+    obj["task_id"]=(qint64)task_id;
     QString plist_str;
     for(auto i:pts_list) plist_str.append((plist_str.isEmpty()?"":",")+QString::number(i));
     obj["pts_list"]=plist_str;
     write_json(obj);
+    return task_id;
 }
 
-inline void ThumbsGetter::start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name){
+inline unsigned long long ThumbsGetter::start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name){
+    unsigned long long task_id=next_task_id++;
     QJsonObject obj;
     obj["opt"]="get_merged_thumbnails";
     obj["file_path"]=file_path; obj["row"]=row; obj["column"]=column; obj["thumbs_name"]=thumbs_name;
+    obj["task_id"]=(qint64)task_id;
     QString plist_str;
     for(auto i:pts_list) plist_str.append((plist_str.isEmpty()?"":",")+QString::number(i));
     obj["pts_list"]=plist_str;
     write_json(obj);
+    return task_id;
 }
 
 inline void ThumbsGetter::show_thumbnailer_dialog(double opacity){
@@ -151,37 +174,42 @@ inline void ThumbsGetter::show_thumbnailer_dialog(double opacity){
     write_json(obj);
 }
 
-inline void ThumbsGetter::start_get_media_info(const QString &file_path){
+inline unsigned long long ThumbsGetter::start_get_media_info(const QString &file_path){
+    unsigned long long task_id=next_task_id++;
     QJsonObject obj;
     obj["opt"]="get_media_info"; obj["file_path"]=file_path;
+    obj["task_id"]=(qint64)task_id;
     write_json(obj);
+    return task_id;
 }
 
-inline bool ThumbsGetter::GetMediaInfo(const QString &file_path,QObject *slot_object,int &width,int &height,long long &duration){
+inline MediaInfo ThumbsGetter::GetMediaInfo(const QString &file_path){
     auto getter=new ThumbsGetter();
-    QEventLoop *loop=new QEventLoop;
+    QEventLoop loop;
     QTimer timer;
-    timer.setSingleShot(true); timer.start(5000); //5秒超时
-    QObject::connect(&timer,&QTimer::timeout,loop,&QEventLoop::quit);
-    QObject::connect(getter,&ThumbsGetter::media_info_generated,slot_object,[getter,file_path,loop,&width,&height,&duration](QString got_path,int w,int h,long long d){
-        if(got_path!=file_path){
+    timer.setSingleShot(true); timer.start(4000); //4秒超时
+    QObject::connect(&timer,&QTimer::timeout,&loop,&QEventLoop::quit);
+    unsigned long long task_id=getter->start_get_media_info(file_path);
+    bool got_result=false;
+    MediaInfo media_info;
+    QObject::connect(getter,&ThumbsGetter::media_info_generated,getter,[getter,task_id,&loop,&media_info,&got_result](unsigned long long got_id,int w,int h,long long d){
+        if(got_id!=task_id){
             return;
         }
-        width=w; height=h; duration=d;
+        media_info.width=w; media_info.height=h; media_info.duration=d;
+        got_result=true;
         getter->deleteLater(); //完成后销毁
-        loop->quit();
+        loop.quit();
     });
-    width=height=-1; //初始化
-    getter->start_get_media_info(file_path);
-    loop->exec();
+    loop.exec();
     //断开信号连接,防止超时后回调访问已销毁的局部变量
-    QObject::disconnect(getter,&ThumbsGetter::media_info_generated,slot_object,nullptr);
-    loop->deleteLater();
-    if(width==-1||height==-1){
+    QObject::disconnect(getter,&ThumbsGetter::media_info_generated,getter,nullptr);
+//    loop.deleteLater();
+    if(!got_result){
         getter->deleteLater(); //超时未收到结果,手动释放
-        return false;
+        return MediaInfo{};
     }
-    return true;
+    return media_info;
 }
 
 inline void ThumbsGetter::stop_process(){ //给process(Thumbniler.exe)写入"exit"让它停止
@@ -204,7 +232,7 @@ inline bool ThumbsGetter::parse_as_media_info_result(const QJsonObject &obj){
     if(obj.value("result").toString()!="Success"){
         w=h=-1; duration=-1;
     }
-    emit media_info_generated(obj.value("file_path").toString(),w,h,duration);
+    emit media_info_generated((unsigned long long)obj.value("task_id").toInteger(),w,h,duration);
     return true;
 }
 
@@ -214,7 +242,7 @@ inline bool ThumbsGetter::parse_as_merged_thumbnails_result(const QJsonObject &o
     if(obj.value("result").toString()!="Success"){
         tpath.clear();
     }
-    emit local_image_generated(obj.value("file_path").toString(),tpath);
+    emit local_image_generated((unsigned long long)obj.value("task_id").toInteger(),tpath);
     return true;
 }
 
@@ -228,14 +256,14 @@ inline bool ThumbsGetter::parse_as_thumbnails_result(const QJsonObject &obj){
         //通知Thumbnailer删除临时文件
         write_json({{"opt","delete_file"},{"file_path",thumb_path}});
     }
-    emit image_generated(obj.value("file_path").toString(),pos,image);
+    emit image_generated((unsigned long long)obj.value("task_id").toInteger(),pos,image);
     return true;
 }
 
 inline bool ThumbsGetter::is_progress_json(const QJsonObject &obj){
-    if(!obj.contains("progress")||!obj.value("file_path").isString()) return false;
+    if(!obj.contains("progress")||!obj.contains("task_id")) return false;
     int x=obj.value("progress").toInt();
-    emit thumbs_generating_progress_changed(obj.value("file_path").toString(),x);
+    emit thumbs_generating_progress_changed((unsigned long long)obj.value("task_id").toInteger(),x);
     return true;
 }
 
@@ -290,7 +318,7 @@ inline void ThumbsGetter::ready_read_output(){
 }
 
 inline void ThumbsGetter::process_finished(int exit_code){  //Thumbnailer进程结束
-    qDebug()<<"Thumbnailer Process Finished with:"<<exit_code;
+    qDebug("Thumbnailer Process Finished with: %d",exit_code);
 }
 
 }

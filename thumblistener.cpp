@@ -16,8 +16,8 @@ ThumbListener::ThumbListener(QObject *parent):QThread{parent}{
 }
 ThumbListener::~ThumbListener(){
     stop();
-    if(!this->wait(5000)){ //等待线程退出,最多5秒(CancelIoEx会中断ReadFile阻塞)
-        qWarning()<<"Listener线程未能在5秒内退出";
+    if(!this->wait(3000)){ //等待线程退出,最多5秒(CancelIoEx会中断ReadFile阻塞)
+        qWarning()<<"Listener线程未能在3秒内退出";
     }
     cleanup_single_dir(); //退出时清理临时文件
     for(QThread *thread:thread_list){
@@ -146,6 +146,7 @@ void ThumbListener::init_start_operations(){
     // >>>>> 指令: get_media_info
     start_operations["get_media_info"]=[this](const QJsonObject &obj){
         QString file_path=obj.value("file_path").toString();
+        qint64 task_id=obj.value("task_id").toInteger();
         QString res_str="Success";
         VideoInfo info{0,0,0,0};
         if(!QFileInfo::exists(file_path)){
@@ -156,7 +157,7 @@ void ThumbListener::init_start_operations(){
         QJsonObject res;
         res["opt"]=obj.value("opt").toString();
         res["width"]=info.width; res["height"]=info.height; res["duration"]=info.duration;
-        res["file_path"]=file_path;
+        res["task_id"]=task_id;
         res["result"]=res_str;
         write_json(res);
     };
@@ -169,6 +170,7 @@ void ThumbListener::init_start_operations(){
          * 结果以临时文件形式保存在ztbso/single/下,通过thumb_path字段返回文件路径
         */
         QString file_path=obj.value("file_path").toString();
+        qint64 task_id=obj.value("task_id").toInteger();
         int count=obj.value("count").toInt();
         QStringList pts_strlist=obj.value("pts_list").toString().split(',');
         QVector<long long> pts_list;
@@ -183,7 +185,7 @@ void ThumbListener::init_start_operations(){
         if(res_str!="Success"){
             QJsonObject res;
             res["opt"]=obj.value("opt").toString();
-            res["file_path"]=file_path;
+            res["task_id"]=task_id;
             res["result"]=res_str;
             write_json(res);
             return;
@@ -196,14 +198,14 @@ void ThumbListener::init_start_operations(){
         std::shared_ptr<QVector<QImage>> resList(new QVector<QImage>);
         connect(thumbnailer,&Thumbnailer::thumbs_progress_changed,this,[=](double rate){
             QJsonObject progress;
-            progress["opt"]=obj.value("opt").toString(); progress["file_path"]=file_path;
+            progress["opt"]=obj.value("opt").toString(); progress["task_id"]=task_id;
             progress["progress"]=(int)(rate*100);
             write_json(progress);
             //所有缩略图生成完毕,保存为临时文件并发送路径
             if((int)(rate*100)>=100){
                 for(int i=0;i<resList->size();++i){
                     QJsonObject res;
-                    res["opt"]=obj.value("opt").toString(); res["file_path"]=file_path;
+                    res["opt"]=obj.value("opt").toString(); res["task_id"]=task_id;
                     res["pos"]=i+1;
                     QString thumb_path=save_single_thumbnail(resList->at(i),i);
                     if(!thumb_path.isEmpty()){
@@ -227,7 +229,7 @@ void ThumbListener::init_start_operations(){
             if(!ok){ //初始化阶段失败,不会触发进度信号
                 QJsonObject res;
                 res["opt"]=obj.value("opt").toString();
-                res["file_path"]=file_path;
+                res["task_id"]=task_id;
                 res["result"]="Generate Thumbnails Failed";
                 write_json(res);
                 thumbnailer->deleteLater(); thread->quit();
@@ -243,10 +245,11 @@ void ThumbListener::init_start_operations(){
          * @pts_list: 手动截取的视频位置,时间单位为ms,半角逗号分隔
          * @thumbs_name: 同ThumbnailerDialog::set_thumbs_name
          * ---------- Output ----------
-         * @opt, file_path, result
+         * @opt, task_id, result
          * @thumbs_path: 本地路径(位于ztbso/merged/下)
         */
         QString file_path=obj.value("file_path").toString();
+        qint64 task_id=obj.value("task_id").toInteger();
         int row=obj.value("row").toInt(),column=obj.value("column").toInt();
         QString thumbs_name=obj.value("thumbs_name").toString();
         QStringList pts_strlist=obj.value("pts_list").toString().split(',');
@@ -260,7 +263,7 @@ void ThumbListener::init_start_operations(){
         if(!QFileInfo::exists(file_path)) res_str="File not Exists";
         if(row<=0||row>9||column<=0||column>9) res_str="Row or Column Out of Range";
         QJsonObject res;
-        res["opt"]=obj.value("opt").toString(); res["file_path"]=file_path; res["result"]=res_str;
+        res["opt"]=obj.value("opt").toString(); res["task_id"]=task_id; res["result"]=res_str;
         if(res_str!="Success"){
             write_json(res); return;
         }
@@ -271,7 +274,7 @@ void ThumbListener::init_start_operations(){
         qDebug()<<"created thumbnailer:"<<thumbnailer;
         connect(thumbnailer,&Thumbnailer::thumbs_progress_changed,this,[=](double rate){
             QJsonObject progress;
-            progress["opt"]=obj.value("opt").toString(); progress["file_path"]=file_path;
+            progress["opt"]=obj.value("opt").toString(); progress["task_id"]=task_id;
             progress["progress"]=(int)(rate*100);
             write_json(progress);
         });
@@ -289,7 +292,7 @@ void ThumbListener::init_start_operations(){
             if(!ok){ //初始化阶段失败,thumbnails_generated信号不会触发
                 QJsonObject fail_res;
                 fail_res["opt"]=obj.value("opt").toString();
-                fail_res["file_path"]=file_path;
+                fail_res["task_id"]=task_id;
                 fail_res["result"]="Generate Merged Thumbnails Failed";
                 write_json(fail_res);
                 thumbnailer->deleteLater(); thread->quit();

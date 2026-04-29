@@ -66,11 +66,12 @@ signals:
     void thumbs_progress_changed(double rate); //生成thumbs的进度,表示为一个0到1之间的浮点数
     void thumbnails_generated(const QString &tpath);
 
-public:
+public: //设置项
     bool SlowThumbnailsAlgorithm;
     bool RemoveThumbnailsMark;
-    static bool DefaultSlowThumbnailsAlgorithm;
-    static bool DefaultRemoveThumbnailsMark;
+    inline static bool DefaultSlowThumbnailsAlgorithm{false};
+    inline static bool DefaultRemoveThumbnailsMark{false};
+public:
     static int ThumbsLimit(); //获取每行/列最多能画多少个缩略图
 
     //因为get_thumbnails函数与QTread进行了链接，所以通过一般途径得不到它的返回值
@@ -78,9 +79,9 @@ public:
     std::atomic<int> get_thumbnails_result{0};
 
 private:
-    static int MaxThumbsLimit; //每行/列最多能画多少个缩略图
-    static int MAX_THUMBS_WIDTH;
-    static int MAX_THUMBS_HEIGHT;
+    inline static int MaxThumbsLimit{9}; //每行/列最多能画多少个缩略图
+    inline static int MAX_THUMBS_WIDTH=640; //16*40
+    inline static int MAX_THUMBS_HEIGHT=360; //9*40
 
 private:
     QString video_path;

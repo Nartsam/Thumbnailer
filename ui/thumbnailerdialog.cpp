@@ -87,6 +87,7 @@ ThumbnailerDialog::~ThumbnailerDialog(){
 
 void ThumbnailerDialog::set_arguments(const QStringList &arg_list){
     if(arg_list.contains("-nogui",Qt::CaseInsensitive)) no_gui=true;
+    if(arg_list.contains("-nohotkey",Qt::CaseInsensitive)) no_hotkey=true;
 }
 
 void ThumbnailerDialog::show_info(const QString &str){
@@ -126,7 +127,7 @@ void ThumbnailerDialog::init(){
     set_video(QStringLiteral()); //初始没有视频. 需要在PathLabel, ListView初始化完成后调用
     set_buttons_icon();
     // 注册默认的快捷键
-    set_global_hotkey("snap",Qt::ControlModifier,Qt::Key_S); //ctrl+s 捕获
+    if(!no_hotkey) set_global_hotkey("snap",Qt::ControlModifier,Qt::Key_S); //ctrl+s 捕获
 }
 
 void ThumbnailerDialog::setup_settings(){
@@ -292,23 +293,22 @@ void ThumbnailerDialog::resizeEvent(QResizeEvent* event){
     player->refresh_output_widget_size();
     emit dialog_resize_signal(this->size());
 }
-//注册一个全局热键. 如果该名称已注册过,会先注销旧的再注册新的
-//注册成功后会同时记录到两个哈希表中,分别用于按名称查找和按ID查找
+//注册一个全局热键. 如果该名称已注册过,会先注销旧的再注册新的,注册成功后会同时记录到两个哈希表中,分别用于按名称查找和按ID查找
 void ThumbnailerDialog::set_global_hotkey(const QString &name,Qt::KeyboardModifiers modifiers,Qt::Key key){
     clear_global_hotkey(name); //如果同名热键已存在,先注销
     UINT nativeMod=qtModifiersToNative(modifiers);
     UINT nativeVk=qtKeyToNativeVk(key);
     if(nativeVk==0){
-        qWarning()<<"Unsupported key for global hotkey:"<<key;
+        qWarning()<<"Unsupported Key for Global Hotkey:"<<key;
         return;
     }
     int id=nextHotkeyId++;
     if(RegisterHotKey((HWND)winId(),id,nativeMod,nativeVk)){
         registeredHotkeys[name]={id,nativeMod,nativeVk}; //记录: 名称->信息
         hotkeyIdToName[id]=name;                          //记录: ID->名称
-        qDebug().noquote()<<QKeySequence(modifiers|key).toString()<<"registered as global hotkey"<<QString("\"%1\"").arg(name);
+        qDebug().noquote()<<("\""+QKeySequence(modifiers|key).toString()+"\"")<<"Registered as Global Hotkey"<<QString("\"%1\"").arg(name);
     }
-    else qWarning()<<"Failed to register global hotkey"<<name<<", error:"<<GetLastError();
+    else qWarning()<<"Failed to Register Global Hotkey"<<name<<", Error:"<<GetLastError();
 }
 void ThumbnailerDialog::clear_global_hotkey(const QString &name){
     auto it=registeredHotkeys.find(name);
@@ -319,8 +319,7 @@ void ThumbnailerDialog::clear_global_hotkey(const QString &name){
     }
 }
 //拦截Windows原生消息. 当收到WM_HOTKEY时,不立即执行动作,而是启动定时器等待按键松开
-//原因: 如果立即执行,槽函数内部可能会模拟按键(如PotPlayer的position()会模拟G键),
-//      此时Ctrl+S还没松开,就变成了Ctrl+S+G三键同按,导致第三方播放器触发了错误的功能
+//原因: 如果立即执行,槽函数内部可能会模拟按键(如PotPlayer的position()会模拟G键),此时Ctrl+S还没松开,就变成了Ctrl+S+G三键同按,导致第三方播放器触发了错误的功能
 bool ThumbnailerDialog::nativeEvent(const QByteArray &eventType,void *message,qintptr *result){
     if(eventType=="windows_generic_MSG"){
         MSG *msg=static_cast<MSG*>(message);

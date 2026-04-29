@@ -138,6 +138,7 @@ private:
     int nextHotkeyId{1};                         //自增ID,每注册一个热键分配一个唯一ID给RegisterHotKey
     QString pendingHotkeyAction;                 //等待按键松开后要执行的热键名称
     QTimer *hotkeyReleaseTimer{nullptr};         //定时器,每20ms检测一次按键是否全部松开
+    bool no_hotkey{false};
     // 默认播放器
     static PlayerList default_video_player;
 };

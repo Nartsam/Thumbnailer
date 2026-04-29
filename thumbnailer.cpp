@@ -17,12 +17,6 @@ extern "C"{
 }
 
 
-
-bool Thumbnailer::DefaultSlowThumbnailsAlgorithm=false;
-bool Thumbnailer::DefaultRemoveThumbnailsMark=false;
-int Thumbnailer::MaxThumbsLimit=9;
-int Thumbnailer::MAX_THUMBS_WIDTH=640; //16*40
-int Thumbnailer::MAX_THUMBS_HEIGHT=360; //9*40
 int Thumbnailer::ThumbsLimit(){return MaxThumbsLimit;}
 
 

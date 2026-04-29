@@ -30,9 +30,9 @@ ThumbListener 通过标准输入输出进行进程间通信，每行一条 JSON 
 
 | 指令 | 说明 | 输入字段 | 输出字段 |
 |------|------|----------|----------|
-| `get_media_info` | 获取视频文件信息 | `file_path` | `width`, `height`, `duration`, `result` |
-| `get_thumbnails` | 生成单张缩略图（保存为临时文件） | `file_path`, `count`(1~81), `pts_list`(可选, ms, 逗号分隔) | `pos`, `thumb_path`, `progress`, `result` |
-| `get_merged_thumbnails` | 生成合并的 n×m 缩略图 | `file_path`, `row`(1~9), `column`(1~9), `pts_list`(可选), `thumbs_name`(可选) | `thumbs_path`, `progress`, `result` |
+| `get_media_info` | 获取视频文件信息 | `file_path`, `task_id` | `task_id`, `width`, `height`, `duration`, `result` |
+| `get_thumbnails` | 生成单张缩略图（保存为临时文件） | `file_path`, `task_id`, `count`(1~81), `pts_list`(可选, ms, 逗号分隔) | `task_id`, `pos`, `thumb_path`, `progress`, `result` |
+| `get_merged_thumbnails` | 生成合并的 n×m 缩略图 | `file_path`, `task_id`, `row`(1~9), `column`(1~9), `pts_list`(可选), `thumbs_name`(可选) | `task_id`, `thumbs_path`, `progress`, `result` |
 | `set_window_opacity` | 设置窗口透明度 | `opacity`(0~1) | `result` |
 | `delete_file` | 删除 ztbso 目录内的文件(一般不需要手动调用) | `file_path` | 无 |
 | `exit` | 停止监听并退出程序 | 无 | 无 |
@@ -42,11 +42,11 @@ ThumbListener 通过标准输入输出进行进程间通信，每行一条 JSON 
 **示例：**
 
 ```json
-{"opt": "get_thumbnails", "file_path": "D:/video.mp4", "count": 9, "pts_list": "1000,5000,10000"}
+{"opt": "get_thumbnails", "file_path": "D:/video.mp4", "task_id": 1, "count": 9, "pts_list": "1000,5000,10000"}
 ```
 
 ```json
-{"opt": "get_merged_thumbnails", "file_path": "D:/video.mp4", "row": 3, "column": 3}
+{"opt": "get_merged_thumbnails", "file_path": "D:/video.mp4", "task_id": 2, "row": 3, "column": 3}
 ```
 
 **说明：**
@@ -54,5 +54,5 @@ ThumbListener 通过标准输入输出进行进程间通信，每行一条 JSON 
 - `get_thumbnails` 完成后逐张返回结果，每条包含 `pos`（从1开始）和 `thumb_path`
 - `get_merged_thumbnails` 完成后返回 `thumbs_path`（保存在 `ztbso/merged/` 下）
 - `delete_file` 仅允许删除 `ztbso/` 目录内的文件，不会操作外部路径
-- 所有响应均包含 `opt` 和 `file_path` 字段（如适用），通过 `result` 字段判断是否成功
+- 所有响应均包含 `opt` 和 `task_id` 字段（如适用），通过 `task_id` 匹配请求，通过 `result` 字段判断是否成功
 
