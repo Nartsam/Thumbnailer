@@ -31,8 +31,8 @@ ThumbListener 通过标准输入输出进行进程间通信，每行一条 JSON 
 | 指令 | 说明 | 输入字段 | 输出字段 |
 |------|------|----------|----------|
 | `get_media_info` | 获取视频文件信息 | `file_path`, `task_id` | `task_id`, `width`, `height`, `duration`, `result` |
-| `get_thumbnails` | 生成单张缩略图（保存为临时文件） | `file_path`, `task_id`, `count`(1~81), `pts_list`(可选, ms, 逗号分隔) | `task_id`, `pos`, `thumb_path`, `progress`, `result` |
-| `get_merged_thumbnails` | 生成合并的 n×m 缩略图 | `file_path`, `task_id`, `row`(1~9), `column`(1~9), `pts_list`(可选), `thumbs_name`(可选) | `task_id`, `thumbs_path`, `progress`, `result` |
+| `get_thumbnails` | 生成单张缩略图（保存为临时文件） | `file_path`, `task_id`, `count`(1~81), `pts_list`(可选, ms, 逗号分隔), `slow_algorithm`(可选, bool, 默认false), `remove_watermark`(可选, bool, 默认false) | `task_id`, `pos`, `thumb_path`, `progress`, `result` |
+| `get_merged_thumbnails` | 生成合并的 n×m 缩略图 | `file_path`, `task_id`, `row`(1~9), `column`(1~9), `pts_list`(可选), `thumbs_name`(可选), `slow_algorithm`(可选, bool, 默认false), `remove_watermark`(可选, bool, 默认false) | `task_id`, `thumbs_path`, `progress`, `result` |
 | `set_window_opacity` | 设置窗口透明度 | `opacity`(0~1) | `result` |
 | `delete_file` | 删除 ztbso 目录内的文件(一般不需要手动调用) | `file_path` | 无 |
 | `exit` | 停止监听并退出程序 | 无 | 无 |
@@ -50,6 +50,7 @@ ThumbListener 通过标准输入输出进行进程间通信，每行一条 JSON 
 ```
 
 **说明：**
+- `slow_algorithm` 为 true 时使用慢速但更精确的缩略图截取算法，`remove_watermark` 为 true 时不在缩略图上绘制时间戳水印
 - `get_thumbnails` 和 `get_merged_thumbnails` 为异步操作，执行过程中会持续输出 `progress`（0~100）消息
 - `get_thumbnails` 完成后逐张返回结果，每条包含 `pos`（从1开始）和 `thumb_path`
 - `get_merged_thumbnails` 完成后返回 `thumbs_path`（保存在 `ztbso/merged/` 下）

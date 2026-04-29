@@ -74,7 +74,8 @@ public:
      * @file_path: 媒体文件路径
      * @count: 总共要生成多少张
     */
-    unsigned long long start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list);
+    unsigned long long start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list,
+                                           bool slow_algorithm=false,bool remove_watermark=false);
 
     /*
      * 获取一整张的缩略图, 生成完成后通过信号给出图片在本地文件中的路径
@@ -83,7 +84,8 @@ public:
      * @thumbs_name: 缩略图文件名(不含扩展名)
      * 缩略图保存位置由Thumbnailer进程管理(ztbso/merged/),通过thumbs_path字段返回
     */
-    unsigned long long start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name);
+    unsigned long long start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name,
+                                                   bool slow_algorithm=false,bool remove_watermark=false);
     unsigned long long start_get_media_info(const QString &file_path);
     void show_thumbnailer_dialog(double opacity=1.0);
     static MediaInfo GetMediaInfo(const QString &file_path); //返回无效的 MediaInfo 表示获取失败
@@ -142,7 +144,8 @@ inline ThumbsGetter::~ThumbsGetter(){
     }
 }
 
-inline unsigned long long ThumbsGetter::start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list){
+inline unsigned long long ThumbsGetter::start_get_thumbnails(const QString &file_path,int count,const QVector<long long> &pts_list,
+                                                             bool slow_algorithm,bool remove_watermark){
     unsigned long long task_id=next_task_id++;
     QJsonObject obj;
     obj["opt"]="get_thumbnails";
@@ -151,11 +154,14 @@ inline unsigned long long ThumbsGetter::start_get_thumbnails(const QString &file
     QString plist_str;
     for(auto i:pts_list) plist_str.append((plist_str.isEmpty()?"":",")+QString::number(i));
     obj["pts_list"]=plist_str;
+    if(slow_algorithm) obj["slow_algorithm"]=true;
+    if(remove_watermark) obj["remove_watermark"]=true;
     write_json(obj);
     return task_id;
 }
 
-inline unsigned long long ThumbsGetter::start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name){
+inline unsigned long long ThumbsGetter::start_get_merged_thumbnails(const QString &file_path,int row,int column,const QVector<long long> &pts_list,const QString &thumbs_name,
+                                                                     bool slow_algorithm,bool remove_watermark){
     unsigned long long task_id=next_task_id++;
     QJsonObject obj;
     obj["opt"]="get_merged_thumbnails";
@@ -164,6 +170,8 @@ inline unsigned long long ThumbsGetter::start_get_merged_thumbnails(const QStrin
     QString plist_str;
     for(auto i:pts_list) plist_str.append((plist_str.isEmpty()?"":",")+QString::number(i));
     obj["pts_list"]=plist_str;
+    if(slow_algorithm) obj["slow_algorithm"]=true;
+    if(remove_watermark) obj["remove_watermark"]=true;
     write_json(obj);
     return task_id;
 }

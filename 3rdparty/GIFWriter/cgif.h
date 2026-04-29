@@ -102,6 +102,8 @@ struct st_cgif_rgb_frameconfig {
   uint32_t attrFlags;   // TBD
   uint32_t genFlags;    // TBD
   uint16_t delay;
+  uint8_t  depthMax;    // color depth for quantization: 4~8 (max 2^n - 1 colors). 0 = default (8)
+  uint8_t  dithering;   // 0 = default (Floyd-Steinberg), 1 = none, 2 = Floyd-Steinberg, 3 = Sierra
 };
 
 #ifdef __cplusplus

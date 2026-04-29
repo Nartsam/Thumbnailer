@@ -192,6 +192,9 @@ void ThumbListener::init_start_operations(){
         }
         ensure_data_dirs();
         Thumbnailer *thumbnailer=new Thumbnailer();
+        //可选字段: 控制生成算法和水印
+        if(obj.contains("slow_algorithm")) thumbnailer->SlowThumbnailsAlgorithm=obj.value("slow_algorithm").toBool();
+        if(obj.contains("remove_watermark")) thumbnailer->RemoveThumbnailsMark=obj.value("remove_watermark").toBool();
         QThread *thread=create_thread();
         thumbnailer->moveToThread(thread);
 
@@ -269,6 +272,9 @@ void ThumbListener::init_start_operations(){
         }
         ensure_data_dirs();
         Thumbnailer *thumbnailer=new Thumbnailer();
+        //可选字段: 控制生成算法和水印
+        if(obj.contains("slow_algorithm")) thumbnailer->SlowThumbnailsAlgorithm=obj.value("slow_algorithm").toBool();
+        if(obj.contains("remove_watermark")) thumbnailer->RemoveThumbnailsMark=obj.value("remove_watermark").toBool();
         QThread *thread=create_thread();
         thumbnailer->moveToThread(thread);
         qDebug()<<"created thumbnailer:"<<thumbnailer;

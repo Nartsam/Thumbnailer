@@ -517,7 +517,15 @@ cgif_result cgif_rgb_addframe(CGIFrgb* pGIF, const CGIFrgb_FrameConfig* pConfig)
   fConfig.attrFlags     = CGIF_FRAME_ATTR_USE_LOCAL_TABLE;
   fConfig.genFlags = pConfig->genFlags;
 
-  const int sizeLCT      = rgb_to_index(pConfig->pImageData, numPixel, pGIF->config.width, pConfig->fmtChan, fConfig.pImageData, aPalette, 8, 1, &hasAlpha, pGIF->pBefImageData, pGIF->befFmtChan);
+  // depthMax: 0 = default (8). dithering: 0=default(FS), 1=none, 2=FS, 3=Sierra → map to rgb_to_index convention (0=none, 1=FS, 2+=Sierra)
+  const uint8_t depth  = pConfig->depthMax ? pConfig->depthMax : 8;
+  uint8_t dither;
+  switch (pConfig->dithering) {
+    case 1:  dither = 0; break;
+    case 3:  dither = 2; break;
+    default: dither = 1; break;
+  }
+  const int sizeLCT      = rgb_to_index(pConfig->pImageData, numPixel, pGIF->config.width, pConfig->fmtChan, fConfig.pImageData, aPalette, depth, dither, &hasAlpha, pGIF->pBefImageData, pGIF->befFmtChan);
   fConfig.numLocalPaletteEntries = sizeLCT;
   if(hasAlpha) {
     fConfig.attrFlags   |= CGIF_FRAME_ATTR_HAS_ALPHA;
